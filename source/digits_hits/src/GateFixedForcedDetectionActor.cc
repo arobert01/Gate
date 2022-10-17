@@ -648,6 +648,27 @@ void GateFixedForcedDetectionActor::BeginOfEventAction(const G4Event *e)
       mEventImage[ProcessType(i)]->Modified();
       }
     }
+  if (mSourceType == "isotropic"
+          && e->GetPrimaryVertex(0)->GetPrimary(0)->GetParticleDefinition()->GetParticleName() == "gamma") {
+    //DD("###################coucou################")
+    ForceDetectionOfInteraction(e->GetEventID(),
+                                G4String("IsotropicPrimary"),
+                                e->GetPrimaryVertex(0)->GetPosition(),
+                                e->GetPrimaryVertex(0)->GetPrimary(0)->GetMomentumDirection(),
+                                e->GetPrimaryVertex(0)->GetPrimary(0)->GetKineticEnergy(),
+                                e->GetPrimaryVertex(0)->GetPrimary(0)->GetWeight(),
+                                0);
+    mNumberOfProcessedPrimaries++;
+
+    if (mGeneratePhotons) {
+      e->GetPrimaryVertex(0)->GetPrimary(0)->SetWeight(0);
+    }
+  }
+//    DD(e->GetPrimaryVertex(0)->GetPosition())
+//    DD(e->GetPrimaryVertex(0)->GetPrimary(0)->GetKineticEnergy())
+//    DD(e->GetPrimaryVertex(0)->GetPrimary(0)->GetWeight())
+//    DD(e->GetPrimaryVertex(0)->GetPrimary(0)->GetMomentumDirection())
+//    DD(e->GetPrimaryVertex(0)->GetPrimary(0)->GetParticleDefinition()->GetParticleName())
 }
 
 void GateFixedForcedDetectionActor::EndOfEventAction(const G4Event *e)
@@ -751,27 +772,6 @@ void GateFixedForcedDetectionActor::UserSteppingAction(const GateVVolume * v, co
     const G4VEmProcess *process = dynamic_cast<const G4VEmProcess*>(pr);
     if (!process)
       {
-      /* See if we have to place it in BeginOfEvent */
-      if (mSourceType == "isotropic"
-          && step->GetTrack()->GetCurrentStepNumber() == 1
-          && step->GetTrack()->GetDefinition()->GetParticleName() == "gamma")
-        {
-
-        ForceDetectionOfInteraction(GateRunManager::GetRunManager()->GetCurrentEvent()->GetEventID(),
-                                    G4String("IsotropicPrimary"),
-                                    step->GetPreStepPoint()->GetPosition(),
-                                    step->GetPreStepPoint()->GetMomentumDirection(),
-                                    step->GetPreStepPoint()->GetKineticEnergy(),
-                                    step->GetPreStepPoint()->GetWeight(),
-                                    0);
-        mNumberOfProcessedPrimaries++;
-        /* TODO Kill photons going outside of phantom */
-        if (mGeneratePhotons)
-          {
-          step->GetPostStepPoint()->SetWeight(0);
-          }
-        /* For now, put weight=0 but see if other method is more appropriate and check secondaries */
-        }
       return;
       }
 
@@ -959,11 +959,13 @@ void GateFixedForcedDetectionActor::ConnectARF(const unsigned int & numberOfThre
     {
     for (unsigned int photonId = 0; photonId < photonList[thread].size(); photonId++)
       {
+//      DD(photonList[thread][photonId].position)
+//      DD(mInteractionPosition)
       position[0] = photonList[thread][photonId].position[0] + mInteractionPosition[0];
       position[1] = photonList[thread][photonId].position[1] + mInteractionPosition[1];
       position[2] = photonList[thread][photonId].position[2] + mInteractionPosition[2];
       position = m_SourceToDetector.TransformAxis(position);
-      position[0] = arfSD->GetDepth();
+      position[2] = arfSD->GetDepth();
 
       if (thread == 0 && photonId == 0 && newHead == ISOTROPICPRIMARY)
         {
@@ -973,6 +975,7 @@ void GateFixedForcedDetectionActor::ConnectARF(const unsigned int & numberOfThre
         {
         addEmToArfCount = false;
         }
+      //DD(photonList[thread][photonId].direction)
       arfSD->ComputeProjectionSet(position,
                                   m_WorldToDetector.TransformAxis(photonList[thread][photonId].direction),
                                   photonList[thread][photonId].energy,
@@ -998,8 +1001,10 @@ void GateFixedForcedDetectionActor::ForceDetectionOfInteraction(TProjectorType *
     return;
     }
   /* direction and position are in World coordinates and they must be in CT coordinates */
+  //DD(mInteractionDirection);
   G4ThreeVector interactionPositionInCT = m_WorldToCT.TransformPoint(mInteractionPosition);
   G4ThreeVector interactionDirectionInCT = m_WorldToCT.TransformAxis(mInteractionDirection);
+  //DD(mInteractionPosition)
   /* Convert to ITK */
   VectorType direction;
   for (unsigned int i = 0; i < 3; i++)
@@ -1488,23 +1493,23 @@ void GateFixedForcedDetectionActor::ComputeGeometryInfoInImageCoordinateSystem(G
     G4AffineTransform x(phys->GetRotation(), phys->GetTranslation());
     detectorToWorld = detectorToWorld * x;
     }
+//  CLHEP::Hep3Vector rows[3];
+//  rows[0][0] = 0;
+//  rows[0][1] = 0;
+//  rows[0][2] = 1;
+//  rows[1][0] = 0;
+//  rows[1][1] = 1;
+//  rows[1][2] = 0;
+//  rows[2][0] = -1;
+//  rows[2][1] = 0;
+//  rows[2][2] = 0;
 
-  CLHEP::Hep3Vector rows[3];
-  rows[0][0] = 0;
-  rows[0][1] = 0;
-  rows[0][2] = 1;
-  rows[1][0] = 0;
-  rows[1][1] = 1;
-  rows[1][2] = 0;
-  rows[2][0] = -1;
-  rows[2][1] = 0;
-  rows[2][2] = 0;
-
-  G4RotationMatrix rotationInDetectorPlane(rows[0], rows[1], rows[2]);
+//  G4RotationMatrix rotationInDetectorPlane(rows[0], rows[1], rows[2]);
 
 //m_WorldToDetector = detectorToWorld;
 
-  m_WorldToDetector = detectorToWorld.Inverse() * rotationInDetectorPlane;
+//  m_WorldToDetector = detectorToWorld.Inverse() * rotationInDetectorPlane;
+  m_WorldToDetector = detectorToWorld.Inverse();
 
   /*  CT to world */
   v = ct;
@@ -1518,6 +1523,8 @@ void GateFixedForcedDetectionActor::ComputeGeometryInfoInImageCoordinateSystem(G
     ctToWorld = ctToWorld * x;
     }
   m_WorldToCT = ctToWorld.Inverse();
+  //DD(m_WorldToCT)
+  //DD(m_WorldToDetector)
 
   /*  Source to world */
   G4String volname = src->GetRelativePlacementVolume();
@@ -1531,9 +1538,9 @@ void GateFixedForcedDetectionActor::ComputeGeometryInfoInImageCoordinateSystem(G
     G4AffineTransform x(phys->GetRotation(), phys->GetTranslation());
     sourceToWorld = sourceToWorld * x;
     }
-
   /*  Detector parameters */
   G4AffineTransform detectorToCT(detectorToWorld * m_WorldToCT);
+  //DD(detectorToCT)
   /*  check where to get the two directions of the detector.
    Probably the dimension that has lowest size in one of the three directions. */
   G4ThreeVector du;
@@ -1546,12 +1553,12 @@ void GateFixedForcedDetectionActor::ComputeGeometryInfoInImageCoordinateSystem(G
     }
   else
     {
-    if (v->GetHalfDimension(0) < 0.00000055)
+    if (detector->GetHalfDimension(0) < 0.00000055)
       {
       du = detectorToCT.TransformAxis(G4ThreeVector(0, 1, 0));
       dv = detectorToCT.TransformAxis(G4ThreeVector(0, 0, 1));
       }
-    else if (v->GetHalfDimension(0) < 0.00000055)
+    else if (detector->GetHalfDimension(1) < 0.00000055)
       {
       du = detectorToCT.TransformAxis(G4ThreeVector(1, 0, 0));
       dv = detectorToCT.TransformAxis(G4ThreeVector(0, 0, 1));
@@ -1564,36 +1571,38 @@ void GateFixedForcedDetectionActor::ComputeGeometryInfoInImageCoordinateSystem(G
 
     }
   G4ThreeVector dp = detectorToCT.TransformPoint(G4ThreeVector(0, 0, 0));
-
   /*  Source */
   G4ThreeVector s;
   m_SourceToCT = sourceToWorld * m_WorldToCT;
   m_SourceToDetector = sourceToWorld * m_WorldToDetector;
+
   if (src->GetAngDist()->GetDistType() == "focused")
     {
+    DD("focused")
     s = src->GetAngDist()->GetFocusPointCopy();
     s = m_SourceToCT.TransformPoint(s);
     }
-  else  if (src->GetPosDist()->GetPosDisType() == "Point")
-    {
-    s = src->GetPosDist()->GetCentreCoords();
-    s = m_SourceToCT.TransformPoint(s);
-    } /*  point */
-  else if (mSourceType == "plane") // parallel geometry
+//  else  if (src->GetPosDist()->GetPosDisType() == "Point")
+//    {
+//    DD("Point")
+//    s = src->GetPosDist()->GetCentreCoords();
+//    s = m_SourceToCT.TransformPoint(s);
+//    } /*  point */
+  else // parallel geometry
     {
     s = dp;
     G4ThreeVector dw = du.cross(dv);
-    double d1 = src->GetPosDist()->GetCentreCoords().dot(dw);
-    double d2 = dp.dot(dw);
-    if(std::abs(d1+d2)>1e-6)
-      {
-      GateError("RTK requires equal source-to-center and center-to-detector distances in parallel geometry");
-      }
-    if(std::abs(src->GetAngDist()->GetDirection().dot(du))>1e-6 ||
-       std::abs(src->GetAngDist()->GetDirection().dot(dv))>1e-6)
-      {
-      GateError("RTK requires a source direction orthogonal to the detector in parallel geometry");
-      }
+//    double d1 = src->GetPosDist()->GetCentreCoords().dot(dw);
+//    double d2 = dp.dot(dw);
+//    if(std::abs(d1+d2)>1e-6)
+//      {
+//      GateError("RTK requires equal source-to-center and center-to-detector distances in parallel geometry");
+//      }
+//    if(std::abs(src->GetAngDist()->GetDirection().dot(du))>1e-6 ||
+//       std::abs(src->GetAngDist()->GetDirection().dot(dv))>1e-6)
+//      {
+//      GateError("RTK requires a source direction orthogonal to the detector in parallel geometry");
+//      }
     }
 
   /*  Copy in ITK vectors */

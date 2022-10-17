@@ -1102,7 +1102,10 @@ namespace GateFixedForcedDetectionFunctor
         /* Compute ray length in world material
          This is used to compute the length in world as well as the direction
          of the ray in mm. */
-        VectorType worldVector = sourceToPixel + nearestPoint - farthestPoint;
+//        DD(sourceToPixel)
+//        DD(nearestPoint)
+//        DD(farthestPoint)
+        VectorType worldVector = -sourceToPixel - nearestPoint + farthestPoint;
         for (int i = 0; i < 3; i++)
           {
           worldVector[i] *= m_VolumeSpacing[i];
@@ -1136,7 +1139,7 @@ namespace GateFixedForcedDetectionFunctor
           }
 
         /* Final computation */
-        double weight = m_Weight * std::exp(-rayIntegral)*GetSolidAngle(sourceToPixel)/(4*itk::Math::pi);
+        double weight = m_Weight * std::exp(-rayIntegral)*GetSolidAngle(-sourceToPixel)/(4*itk::Math::pi);
         if (m_generatePhotons)
           {
           VectorType photonDirection;
@@ -1144,7 +1147,7 @@ namespace GateFixedForcedDetectionFunctor
           for (int i = 0; i < 3; i++)
             {
             photonDirection[i] = worldVector[i] / worldVectorNorm;
-            photonPosition[i] = farthestPoint[i] * m_VolumeSpacing[i];
+            photonPosition[i] = nearestPoint[i] * m_VolumeSpacing[i];
             }
           SavePhotonsparameters(threadId, photonPosition, photonDirection, weight, m_Energy);
           }
@@ -1155,8 +1158,9 @@ namespace GateFixedForcedDetectionFunctor
           for (int i = 0; i < 3; i++)
             {
             photonDirection[i] = worldVector[i] / worldVectorNorm;
-            photonPosition[i] = sourceToPixel[i] * m_VolumeSpacing[i];
+            photonPosition[i] = -sourceToPixel[i] * m_VolumeSpacing[i];
             }
+          //DD(photonDirection)
           SavePhotonsparameters(threadId, photonPosition, photonDirection, weight, m_Energy);
           }
 

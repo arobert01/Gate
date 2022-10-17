@@ -9,6 +9,7 @@
 #include "GateConfiguration.h"
 #ifdef G4ANALYSIS_USE_ROOT
 
+#include "GateObjectStore.hh"
 #include "GateARFSD.hh"
 #include "GateCrystalHit.hh"
 #include "G4HCofThisEvent.hh"
@@ -177,11 +178,43 @@ G4bool GateARFSD::ProcessHits(G4Step*step, G4TouchableHistory*)
                   "Could not get the volume ID! Aborting!");
       }
 
+
+    /*  Detector to world */
+//    GateVVolume * v = GateObjectStore::GetInstance()->FindVolumeCreator("SPECThead");
+//    G4VPhysicalVolume * phys = v->GetPhysicalVolume();
+//
+//    G4AffineTransform detectorToWorld(phys->GetRotation(), phys->GetTranslation());
+//
+//    while (v->GetLogicalVolumeName() != "world_log")
+//    {
+//      v = v->GetParentVolume();
+//      phys = v->GetPhysicalVolume();
+//      G4AffineTransform x(phys->GetRotation(), phys->GetTranslation());
+//      detectorToWorld = detectorToWorld * x;
+//    }
+//    CLHEP::Hep3Vector rows[3];
+//    rows[0][0] = 0;
+//    rows[0][1] = 0;
+//    rows[0][2] = 1;
+//    rows[1][0] = 0;
+//    rows[1][1] = 1;
+//    rows[1][2] = 0;
+//    rows[2][0] = -1;
+//    rows[2][1] = 0;
+//    rows[2][2] = 0;
+//
+//    G4RotationMatrix rotationInDetectorPlane(rows[0], rows[1], rows[2]);
+//
+//    G4AffineTransform worldToDetector = detectorToWorld.Inverse() * rotationInDetectorPlane;
+
     /* Now we compute the position in the current frame to be able to extract the angles theta and phi */
     G4ThreeVector localPosition = volumeID.MoveToBottomVolumeFrame(track->GetPosition());
     G4ThreeVector vertexPosition = volumeID.MoveToBottomVolumeFrame(step->GetPreStepPoint()->GetPosition());
     G4ThreeVector direction = localPosition - vertexPosition;
 
+//    DD(track->GetPosition())
+//    DD(localPosition)
+//    DD(direction)
     G4double magnitude = direction.mag();
     direction /= magnitude;
     ComputeProjectionSet(localPosition,
@@ -400,8 +433,12 @@ void GateARFSD::ComputeProjectionSet(const G4ThreeVector & position,
    deltaX is the projection plane of the detector on the Ox axis
    all these coordinates are relative to the detector frame where the origin of hte detector is a t the center
    */
-
-  G4double arfValue = mArfTableMgr->ScanTables(direction.z(), direction.y(), energy);
+  G4double arfValue = mArfTableMgr->ScanTables(direction.x(), direction.y(), energy);
+//  DD(mShortcutARF)
+//  DD(position)
+//  DD(arfValue)
+//  DD(direction)
+//  DD(energy)
   /* The coordinates of the intersection of the path of the photon with the back surface of the detector
    is given by
    x = deltaX/2
@@ -414,9 +451,9 @@ void GateARFSD::ComputeProjectionSet(const G4ThreeVector & position,
    t = ( deltaX/2 - xin ) / ux
    deltaX is the dimension of the detector on the Ox axis
    all these coordinates are relative to the detector frame where the origin of the detector is a t the center */
-
-  G4double t = (position.x() - mDetectorXDepth) / direction.x();
-  G4double xP = position.z() + t * direction.z();
+//  DD(mDetectorXDepth)
+  G4double t = (position.z() - mDetectorXDepth) / direction.z();
+  G4double xP = position.x() + t * direction.x();
   G4double yP = position.y() + t * direction.y();
   /* now store projection with the GateProjectionSet Module though its method GateProjectionSet::Fill */
 
@@ -433,11 +470,13 @@ void GateARFSD::ComputeProjectionSet(const G4ThreeVector & position,
       }
     mProjectionSet = projectionSet->GetProjectionSet();
     }
-  mProjectionSet->FillARF(mHeadID, yP, -xP, arfValue * weight, addEmToArfCount);
+//  DD(yP)
+//  DD(-xP)
+  mProjectionSet->FillARF(mHeadID, xP, yP, arfValue * weight, addEmToArfCount);
 
   if (mShortcutARF)
     {
-    mProjectionSet->FillARF(newHead, yP, -xP, arfValue * weight, false);
+    mProjectionSet->FillARF(newHead, xP, yP, arfValue * weight, false);
     }
 
   }
